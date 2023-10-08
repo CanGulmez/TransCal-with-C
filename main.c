@@ -16,18 +16,17 @@ contact the with me over my e-mail address.
 
 #define AUTHOR   "Can Gulmez"
 #define EMAIL    "ahmetcangulmez02gmail.com"
-#define VERSION  "1.1.0"
+#define VERSION  "1.5.0"
 #define RESOURCE "Electronic Devices and Circuit Theory by \
 Robert L. Boylestad and Louis Nashelsky"
 
-#include <stdio.h>
-#include <stdlib.h>
 // #include "BJT.h"
 // #include "JFET.h"
 // #include "MOSFET.h"
 
 int main(void) {
 
+  
 
    return 0;
 }

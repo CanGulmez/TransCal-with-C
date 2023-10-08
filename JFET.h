@@ -10,12 +10,10 @@ I hope, it will be usefull...
 IMPORTANT NOTES:
 ----------------
 
-1. When you run any method, results will display automatically,
-apart from that, you can reach each result in related struct.
-2. Don't give any voltage parameter as negative to algorithms.
+1. Don't give any voltage parameter as negative to algorithms.
 If voltage source connect the inverse, the algorithm handle it.
-3. All transistor configuratiions are set as 'npn' type. 
-4. In ac analysis, algorithms use 'JFET small signal' model.
+2. All transistor configuratiions are set as 'npn' type. 
+3. In ac analysis, algorithms use 'JFET small signal' model.
 
 EXISTING CONFIGURATIONS:
 ------------------------
@@ -34,25 +32,26 @@ EXISTING CONFIGURATIONS:
 // Libraries
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <assert.h>
 #include <math.h>
+#include <string.h>
 
 // Results of DC analysis
 struct DCResults {
-   float Id; // drain current
-   float Vgs; // gate-source voltage
-   float Vds; // drain-source voltage
-   float Vs; // source voltage
-   float Vd; // drain voltage
-   float Vg; // gate voltage
+   double Id; // drain current
+   double Vgs; // gate-source voltage
+   double Vds; // drain-source voltage
+   double Vs; // source voltage
+   double Vd; // drain voltage
+   double Vg; // gate voltage
 } DCAnalysis;
 
 // Results of AC analysis
 struct ACResults {
-   float gm; // transconductance factor
-   float Zi; // input impedance
-   float Zo; // output impedance
-   float Av; // voltage gain
+   double gm; // transconductance factor
+   double Zi; // input impedance
+   double Zo; // output impedance
+   double Av; // voltage gain
    char *phase; // phase relationship
 } ACAnalysis;
 
@@ -60,8 +59,9 @@ struct ACResults {
 /* ---------------------- Helper Definations --------------------- */
 /* --------------------------------------------------------------- */
 
-void _save_dc_results_(float Id, float Vds, float Vgs, float Vs, 
-                       float Vd, float Vg) {
+/* Save the RC results of any kind of transistor. */
+void save_dc_results(double Id, double Vds, double Vgs, double Vs, 
+                     double Vd, double Vg) {
    // Save the DC results into 'DCAnalysis' struct.
    DCAnalysis.Id = Id; // drain current
    DCAnalysis.Vds = Vds; // drain-source voltage
@@ -71,8 +71,9 @@ void _save_dc_results_(float Id, float Vds, float Vgs, float Vs,
    DCAnalysis.Vg = Vg; // gate voltage
 }
 
-void _save_ac_results_(float gm, float Zi, float Zo, float Av, 
-                       char *phase) {
+/* Save the AC results of any kind of transistor. */
+void save_ac_results(double gm, double Zi, double Zo, double Av, 
+                     char *phase) {
    // Save the AC results into 'ACAnalysis' struct.
    ACAnalysis.gm = gm; // transconductance factor
    ACAnalysis.Zi = Zi; // input impedance
@@ -81,7 +82,8 @@ void _save_ac_results_(float gm, float Zi, float Zo, float Av,
    ACAnalysis.phase = phase; // phase relationship
 }
 
-void _display_dc_results_(void) {
+/* Display the DC results of any kind of transistor. */
+void display_dc_results(void) {
    // Display the DC results.
    printf("Id: %e A\n", DCAnalysis.Id);
    printf("Vgs: %f V\n", DCAnalysis.Vgs);
@@ -91,7 +93,8 @@ void _display_dc_results_(void) {
    printf("Vs: %f V\n", DCAnalysis.Vs);
 }
 
-void _display_ac_results_(void) {
+/* Display the AC results of any kind of transistor. */
+void display_ac_results(void) {
    // Display the AC results.
    printf("gm: %e S\n", ACAnalysis.gm);
    printf("Zi: %f ohm\n", ACAnalysis.Zi);
@@ -100,21 +103,24 @@ void _display_ac_results_(void) {
    printf("Phase: %s\n", ACAnalysis.phase);
 }
 
-float _parallel_(float R1, float R2) {
+/* Get the parallel resultant of 'R1' and 'R2'. */
+double parallel(double R1, double R2) {
    // Find the resultant resistance for parallel resistors.
    return 1.0 / (1.0 / R1 + 1.0 / R2);
 }
 
-float _find_gm_factor_(float Idss, float Vp, float Vgs) {
+/* Find the transconductance factor (gm). */
+double find_gm_factor(double Idss, double Vp, double Vgs) {
    // Find the transconductance factor (gm).
    return (2.0 * Idss / abs(Vp)) * (1.0 - Vgs / Vp);
 }
 
-float _select_right_Id_(float a, float b, float c) {
+/* Select the right drain current using discriminant. */
+double select_right_Id(double a, double b, double c) {
    // Find the discriminant and calculate two different roots.
-   float dicriminant = (b * b) - (4 * a * c);
-   float root1 = (-1.0 * b + sqrt(dicriminant)) / (2 * a);
-   float root2 = (-1.0 * b - sqrt(dicriminant)) / (2 * a);
+   double dicriminant = (b * b) - (4 * a * c);
+   double root1 = (-1.0 * b + sqrt(dicriminant)) / (2 * a);
+   double root2 = (-1.0 * b - sqrt(dicriminant)) / (2 * a);
    // Specially, in some configurations, can be found two 
    // roots and requries to select one of them.
    if (root1 >= 0 && root2 < 0) return root1;
@@ -127,13 +133,6 @@ float _select_right_Id_(float a, float b, float c) {
       else return abs(root1);}
 }
 
-void _raise_error_(char *file, char *error, int line, char *msg) {
-   // Display the error message if there is a any error existance.
-   printf("In %s::%d, found an error.\n", file, line);
-   printf("%s: %s\n", error, msg);
-   exit(EXIT_FAILURE);
-}
-
 /* --------------------------------------------------------------- */
 /* ------------------------ Main Definations --------------------- */
 /* --------------------------------------------------------------- */
@@ -144,26 +143,34 @@ void _raise_error_(char *file, char *error, int line, char *msg) {
 gate voltage, gate resistance and drain resistance in order. 'Idss' 
 parameter is the maximum drain current. 'Vp' parameter is the 
 pinch-off voltage. All current and resistance values must be in 
-form of 'A' and 'ohm'.
+form of 'A' and 'ohm'. For example:
+
+double Vdd=16, Vgg=2, Rd=2000, Idss=0.01, Vp=-8;
+dc_fixed_bias(Vdd, Vgg, Rd, Idss, Vp);
+display_dc_results();
+
+Id: 5.625000e-03 A
+Vgs: -2.000000 V
+Vds: 4.750000 V
+Vg: -2.000000 V
+Vd: 4.750000 V
+Vs: 0.000000 V
 */
-void dc_fixed_bias(float Vdd, float Vgg, float Rg, float Rd, 
-                   float Idss, float Vp) {
+void dc_fixed_bias(double Vdd, double Vgg, double Rd, double Idss,
+                   double Vp) {
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rg <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of fixed-bias config. are inconsistent.");
+   assert (Rd > 0);
 
    // Calculate the all analyzes of transistor.
-   float Vgs = -1 * Vgg; // gate-source voltage
-   float Id = Idss * (1.0-Vgs/Vp) * (1.0-Vgs/Vp); // drain current
-   float Vds = Vdd - Id * Rd; // drain-source voltage
-   float Vd = Vds; // drain voltage
-   float Vg = Vgs; // gate voltage
-   float Vs = 0; // source voltage
+   double Vgs = -1 * Vgg; // gate-source voltage
+   double Id = Idss * (1.0-Vgs/Vp) * (1.0-Vgs/Vp);// drain current
+   double Vds = Vdd - Id * Rd; // drain-source voltage
+   double Vd = Vds; // drain voltage
+   double Vg = Vgs; // gate voltage
+   double Vs = 0; // source voltage
 
    // Save and display the DC results of transistor.
-   _save_dc_results_(Id, Vds, Vgs, Vs, Vd, Vg);
-   _display_dc_results_(); 
+   save_dc_results(Id, Vds, Vgs, Vs, Vd, Vg);
 }
 
 /* AC analysis of fixed-bias transistor configuration. 
@@ -173,24 +180,33 @@ gate voltage, gate resistance and drain resistance in order. 'Idss'
 parameter is the maximum drain current. 'Vp' parameter is the 
 pinch-off voltage. 'rd' parameter is the drain resistance. All 
 current and resistance values must be in form of 'A' and 'ohm'.
+For example:
+
+double Vdd=16, Vgg=2, Rd=2000, Rg=1e+6;
+double Idss=0.01, Vp=-8, rd=25000;
+ac_fixed_bias(Vdd, Vgg, Rg, Rd, Idss, Vp, rd);
+display_ac_results();
+
+gm: 1.875000e-03 S
+Zi: 1000000.000000 ohm
+Zo: 1851.851852 ohm
+Av: -3.472222
+Phase: Out of phase
 */
-void ac_fixed_bias(float Vdd, float Vgg, float Rg, float Rd, 
-                   float Idss, float Vp, float rd) {
+void ac_fixed_bias(double Vdd, double Vgg, double Rg, double Rd, 
+                   double Idss, double Vp, double rd) {
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rg <= 0 || rd <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of fixed-bias config. are inconsistent.");
+   assert (Rd > 0 && Rg > 0 && rd > 0);
 
    // Calculate the all analyzes of transistor.
-   float Vgs = -1 * Vgg; // gate-source voltage
-   float gm = _find_gm_factor_(Idss, Vp, Vgs); // gm
-   float Zi = Rg; // input impedance
-   float Zo = _parallel_(Rd, rd); // output impedance
-   float Av = -1.0 * gm * Zo; // voltage gain
+   double Vgs = -1 * Vgg; // gate-source voltage
+   double gm = find_gm_factor(Idss, Vp, Vgs); // gm
+   double Zi = Rg; // input impedance
+   double Zo = parallel(Rd, rd); // output impedance
+   double Av = -1.0 * gm * Zo; // voltage gain
 
    // Save and display the AC results of transistor.
-   _save_ac_results_(gm, Zi, Zo, Av, "Out of phase");
-   _display_ac_results_(); 
+   save_ac_results(gm, Zi, Zo, Av, "Out of phase");
 }
 
 /* DC analysis of self-bias transistor configuration. 
@@ -199,30 +215,38 @@ void ac_fixed_bias(float Vdd, float Vgg, float Rg, float Rd,
 resistance, drain resistance and source resistance in order. 'Idss'
 parameter is the maximum drain current. 'Vp' parameter is the
 pinch-off voltage. All current and resistance values must be in 
-form of 'A' and 'ohm'.
+form of 'A' and 'ohm'. For example:
+
+double Vdd=20, Rd=3300, Rs=1000, Idss=0.008, Vp=-6;
+dc_self_bias(Vdd, Rd, Rs, Idss, Vp);
+display_dc_results();
+
+Id: 2.587624e-03 A
+Vgs: -2.587624 V
+Vds: 8.873216 V
+Vg: 0.000000 V
+Vd: 11.460840 V
+Vs: 2.587624 V
 */
-void dc_self_bias(float Vdd, float Rg, float Rd, float Rs, 
-                  float Idss, float Vp) {
+void dc_self_bias(double Vdd, double Rd, double Rs, double Idss,
+                  double Vp) {
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rg <= 0 || Rs <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of self-bias config. are inconsistent.");
+   assert (Rd > 0 && Rs > 0);
 
    // Calculate the all analyzes of transistor. For that, 
    // previously select the right Id using dicriminant.
-   float a = Rs * Rs * Idss / Vp / Vp;
-   float b = Idss * 2.0 * Rs / Vp - 1;
-   float c = Idss;
-   float Id = _select_right_Id_(a, b, c); // drain current
-   float Vgs = -1 * Id * Rs; // gate-source voltage
-   float Vds = Vdd - Id * (Rs + Rd); // drain-source voltage
-   float Vs = Id * Rs; // source voltage
-   float Vg = 0; // gate voltage
-   float Vd = Vds + Vs; // drain voltage
+   double a = Rs * Rs * Idss / Vp / Vp;
+   double b = Idss * 2.0 * Rs / Vp - 1;
+   double c = Idss;
+   double Id = select_right_Id(a, b, c); // drain current
+   double Vgs = -1 * Id * Rs; // gate-source voltage
+   double Vds = Vdd - Id * (Rs + Rd); // drain-source voltage
+   double Vs = Id * Rs; // source voltage
+   double Vg = 0; // gate voltage
+   double Vd = Vds + Vs; // drain voltage
 
    // Save and display the DC results of transistor.
-   _save_dc_results_(Id, Vds, Vgs, Vs, Vd, Vg);
-   _display_dc_results_(); 
+   save_dc_results(Id, Vds, Vgs, Vs, Vd, Vg);
 }
 
 /* AC analysis of self-bias transistor configuration. 
@@ -232,33 +256,42 @@ resistance, drain resistance and source resistance in order. 'Idss'
 parameter is the maximum drain current. 'Vp' parameter is the 
 pinch-off voltage. 'rd' parameter is the drain resistance. All
 current and resistance values must be in form of 'A' and 'ohm'.
+For example:
+
+double Vdd=20, Rd=3300, Rs=1000, Vp=-6;
+double Idss=0.008, Rg=1e+6, rd=50000;
+ac_self_bias(Vdd, Rg, Rd, Rs, Idss, Vp, rd);
+display_ac_results();
+
+gm: 1.516611e-03 S
+Zi: 1000000.000000 ohm
+Zo: 3216.314824 ohm
+Av: -1.922998
+Phase: Out of phase
 */
-void ac_self_bias(float Vdd, float Rg, float Rd, float Rs, 
-                  float Idss, float Vp, float rd) {
+void ac_self_bias(double Vdd, double Rg, double Rd, double Rs, 
+                  double Idss, double Vp, double rd) {
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rg <= 0 || Rs <= 0 || rd <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of self-bias config. are inconsistent.");
+   assert (Rd > 0 && Rg > 0 && Rs > 0 && rd > 0);
 
    // Calculate the all analyzes of transistor. For that, 
    // previously select the right Id using discriminant.
-   float a = Rs * Rs * Idss / Vp / Vp;
-   float b = Idss * 2.0 * Rs / Vp - 1;
-   float c = Idss;
-   float Id = _select_right_Id_(a, b, c); // drain current
-   float Vgs = -1 * Id * Rs; // gate-source voltage
-   float gm = _find_gm_factor_(Idss, Vp, Vgs); // gm factor
-   float Zi = Rg; // input impedance
-   float Zo1 = 1 + gm * Rs + Rs / rd;
-   float Zo2 = 1 + gm * Rs + Rs / rd + Rd / rd;
-   float Zo = Zo1 * Rd / Zo2; // output impedance
-   float Av1 = gm * Rd;
-   float Av2 = 1.0 + gm * Rs + (Rd + Rs) / rd;
-   float Av = -1.0 * Av1 / Av2; // voltage gain
+   double a = Rs * Rs * Idss / Vp / Vp;
+   double b = Idss * 2.0 * Rs / Vp - 1;
+   double c = Idss;
+   double Id = select_right_Id(a, b, c); // drain current
+   double Vgs = -1 * Id * Rs; // gate-source voltage
+   double gm = find_gm_factor(Idss, Vp, Vgs); // gm factor
+   double Zi = Rg; // input impedance
+   double Zo1 = 1 + gm * Rs + Rs / rd;
+   double Zo2 = 1 + gm * Rs + Rs / rd + Rd / rd;
+   double Zo = Zo1 * Rd / Zo2; // output impedance
+   double Av1 = gm * Rd;
+   double Av2 = 1.0 + gm * Rs + (Rd + Rs) / rd;
+   double Av = -1.0 * Av1 / Av2; // voltage gain
 
    // Save and display the AC results of transistor.
-   _save_ac_results_(gm, Zi, Zo, Av, "Out of phase");
-   _display_ac_results_(); 
+   save_ac_results(gm, Zi, Zo, Av, "Out of phase");
 }
 
 /* DC analysis of voltage-divider transistor configuration. 
@@ -267,32 +300,41 @@ void ac_self_bias(float Vdd, float Rg, float Rd, float Rs,
 upper gate resistance, lower gate resistance, drain resistance and
 source resistance. 'Idss' parameter is the maximum drain current. 
 'Vp' parameter is the pinch-off voltage. All current and resistance 
-values must be in form of 'A' and 'ohm'.
+values must be in form of 'A' and 'ohm'. For example:
+
+double Vdd=16, Rg1=21*1e+5, Rg2=27*1e+4;
+double Rd=2400, Rs=1500, Idss=0.008, Vp=-4;
+dc_voltage_divider(Vdd, Rg1, Rg2, Rd, Rs, Idss, Vp);
+display_dc_results();
+
+Id: 2.416309e-03 A
+Vgs: -1.801678 V
+Vds: 6.576396 V
+Vg: 1.822785 V
+Vd: 10.200859 V
+Vs: 3.624463 V
 */
-void dc_voltage_divider(float Vdd, float Rg1, float Rg2, float Rd,
-                        float Rs, float Idss, float Vp) {
+void dc_voltage_divider(double Vdd,double Rg1,double Rg2,double Rd, 
+                        double Rs, double Idss, double Vp){
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rg1 <= 0 || Rs <= 0 || Rg2 <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of voltage-divider config. are inconsistent.");
+   assert (Rg1 > 0 && Rg2 > 0 && Rd > 0 && Rs > 0);
 
    // Calculate the all analyzes of transistor.
-   float Vg = (Rg2 * Vdd) / (Rg1 + Rg2);
+   double Vg = (Rg2 * Vdd) / (Rg1 + Rg2);
    // For quadritic equations, find discriminant.
-   float a = Rs * Rs * Idss / Vp / Vp;
-   float b1 = (2.0 * Rs * Idss / Vp);
-   float b2 = (2.0 * Vg * Rs * Idss / Vp / Vp);
-   float b = b1 - b2 - 1;
-   float c = Idss * (1.0-(2.0 * Vg/Vp) + (Vg * Vg/Vp/Vp));
-   float Id = _select_right_Id_(a, b, c); // drain current
-   float Vgs = Vg - Id * Rs;  // gate-source voltage
-   float Vds = Vdd - Id * (Rs + Rd); // drain-source voltage
-   float Vs = Id * Rs; // source voltage
-   float Vd = Vdd - Id * Rd; // drain voltage
+   double a = Rs * Rs * Idss / Vp / Vp;
+   double b1 = (2.0 * Rs * Idss / Vp);
+   double b2 = (2.0 * Vg * Rs * Idss / Vp / Vp);
+   double b = b1 - b2 - 1;
+   double c = Idss * (1.0-(2.0 * Vg/Vp) + (Vg * Vg/Vp/Vp));
+   double Id = select_right_Id(a, b, c); // drain current
+   double Vgs = Vg - Id * Rs;  // gate-source voltage
+   double Vds = Vdd - Id * (Rs + Rd); // drain-source voltage
+   double Vs = Id * Rs; // source voltage
+   double Vd = Vdd - Id * Rd; // drain voltage
 
    // Save and display the DC results of transistor.
-   _save_dc_results_(Id, Vds, Vgs, Vs, Vd, Vg);
-   _display_dc_results_(); 
+   save_dc_results(Id, Vds, Vgs, Vs, Vd, Vg);
 }
 
 /* AC analysis of voltage-divider transistor configuration. 
@@ -302,34 +344,41 @@ upper gate resistance, lower gate resistance, drain resistance and
 source resistance. 'Idss' parameter is the maximum drain current. 
 'Vp' parameter is the pinch-off voltage. 'rd' parameter is the drain 
 resistance. All current and resistance values must be in form 
-of 'A' and 'ohm'.
+of 'A' and 'ohm'. For example:
+
+double Vdd=20, Rg1=82*1e+6, Rg2=11*1e+6, Rd=2000;
+double Rs=610, Idss=0.012, Vp=-3, rd=5*1e+5;
+ac_voltage_divider(Vdd, Rg1, Rg2, Rd, Rs, Idss, Vp, rd);
+display_ac_results();
+
+gm: 5.403363e-03 S
+Zi: 9698924.731183 ohm
+Zo: 1992.031873 ohm
+Av: -10.763671
+Phase: Out of phase
 */
-void ac_voltage_divider(float Vdd, float Rg1, float Rg2, float Rd,
-                        float Rs, float Idss, float Vp, float rd){
+void ac_voltage_divider(double Vdd,double Rg1,double Rg2,double Rd,
+                        double Rs,double Idss,double Vp,double rd){
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rg1 <= 0 || Rg2 <= 0 || Rs <= 0 || rd <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of voltage-divider config. are inconsistent.");
+   assert (Rg1 > 0 && Rg2 > 0 && Rd > 0 && Rs > 0);
 
    // Calculate the all analyzes of transistor.
-   float Vg = (Rg2 * Vdd) / (Rg1 + Rg2);
+   double Vg = (Rg2 * Vdd) / (Rg1 + Rg2);
    // For quadritic equations, find discriminant.
-   float a = Rs * Rs * Idss / Vp / Vp;
-   float b1 = (2.0 * Rs * Idss / Vp);
-   float b2 = (2.0 * Vg * Rs * Idss / Vp / Vp);
-   float b = b1 - b2 - 1;
-   float c = Idss * (1.0-(2.0 * Vg/Vp) + (Vg * Vg/Vp/Vp));
-   float Id = _select_right_Id_(a, b, c); // drain current
-   float Vgs = Vg - Id * Rs;  // gate-source voltage
-   float gm = _find_gm_factor_(Idss, Vp, Vgs); // gm factor
-   float Zi = _parallel_(Rg1, Rg2); // input impedance
-   float Zo = _parallel_(Rd, rd); // output impedance
-   float Av = -1 * gm * Zo; // voltage gain
+   double a = Rs * Rs * Idss / Vp / Vp;
+   double b1 = (2.0 * Rs * Idss / Vp);
+   double b2 = (2.0 * Vg * Rs * Idss / Vp / Vp);
+   double b = b1 - b2 - 1;
+   double c = Idss * (1.0-(2.0 * Vg/Vp) + (Vg * Vg/Vp/Vp));
+   double Id = select_right_Id(a, b, c); // drain current
+   double Vgs = Vg - Id * Rs;  // gate-source voltage
+   double gm = find_gm_factor(Idss, Vp, Vgs); // gm factor
+   double Zi = parallel(Rg1, Rg2); // input impedance
+   double Zo = parallel(Rd, rd); // output impedance
+   double Av = -1 * gm * Zo; // voltage gain
 
    // Save and display the AC results of transistor.
-   _save_ac_results_(gm, Zi, Zo, Av, "Out of phase");
-   _display_ac_results_(); 
-
+   save_ac_results(gm, Zi, Zo, Av, "Out of phase");
 }
 
 /* DC analysis of common-gate transistor configuration. 
@@ -338,34 +387,42 @@ void ac_voltage_divider(float Vdd, float Rg1, float Rg2, float Rd,
 source voltage, drain resistance and source resistance. 'Idss' 
 parameter is the maximum drain current. 'Vp' parameter is the 
 pinch-off voltage. All current and resistance must be in form 
-of 'A' and 'ohm'. 
+of 'A' and 'ohm'. For example:
+
+double Vdd=12, Vss=0, Rd=1500, Rs=680, Idss=0.012, Vp=-6;
+dc_common_gate(Vdd, Vss, Rd, Rs, Idss, Vp);
+display_dc_results();
+
+Id: 3.835265e-03 A
+Vgs: -2.607980 V
+Vds: 3.639121 V
+Vg: 0.000000 V
+Vd: 6.247102 V
+Vs: 2.607980 V
 */
-void dc_common_gate(float Vdd, float Vss, float Rd, float Rs, 
-                    float Idss, float Vp) {
+void dc_common_gate(double Vdd, double Vss, double Rd, double Rs, 
+                    double Idss, double Vp) {
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rs <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of common-gate config. are inconsistent.");
+   assert (Rd > 0 && Rs > 0);
 
    // For quadritic equations, find discriminant.
-   float a = (Rs * Rs) * Idss / (Vp * Vp);
-   float b1 = 2.0 * Rs * Idss / Vp;
-   float b2 = -2.0 * Vss * Rs * Idss / Vp / Vp;
-   float b = b1 + b2 - 1.0;
-   float c1 = 2.0 * Vss / Vp;
-   float c2 = Vss * Vss / Vp / Vp;
-   float c = (1.0 - c1 + c2) * Idss;
+   double a = (Rs * Rs) * Idss / (Vp * Vp);
+   double b1 = 2.0 * Rs * Idss / Vp;
+   double b2 = -2.0 * Vss * Rs * Idss / Vp / Vp;
+   double b = b1 + b2 - 1.0;
+   double c1 = 2.0 * Vss / Vp;
+   double c2 = Vss * Vss / Vp / Vp;
+   double c = (1.0 - c1 + c2) * Idss;
    // Calculate the all analyzes of transistor.
-   float Id = _select_right_Id_(a, b, c); // drain current
-   float Vgs = Vss - Id * Rs; // gate-source voltage
-   float Vds = Vdd + Vss - Id * (Rs + Rd); // drain-source voltage
-   float Vs = -Vss + Id * Rs; // source voltage
-   float Vd = Vdd - Id * Rd; // drain voltage
-   float Vg = 0; // gate voltage
+   double Id = select_right_Id(a, b, c); // drain current
+   double Vgs = Vss - Id * Rs; // gate-source voltage
+   double Vds = Vdd + Vss - Id * (Rs + Rd);// drain-source voltage
+   double Vs = -Vss + Id * Rs; // source voltage
+   double Vd = Vdd - Id * Rd; // drain voltage
+   double Vg = 0; // gate voltage
 
    // Save and display the DC results of transistor.
-   _save_dc_results_(Id, Vds, Vgs, Vs, Vd, Vg);
-   _display_dc_results_(); 
+   save_dc_results(Id, Vds, Vgs, Vs, Vd, Vg);
 }
 
 /* AC analysis of common-gate transistor configuration. 
@@ -375,36 +432,45 @@ source voltage, drain resistance and source resistance. 'Idss'
 parameter is the maximum drain current. 'Vp' parameter is the 
 pinch-off voltage. 'rd' parameter is the drain resistance. All 
 current and resistance must be in form of 'A' and 'ohm'. 
+For example: 
+
+double Vdd=15, Vss=0, Rd=3300, Rs=1500, Idss=0.008;
+double Vp=-2.8, rd=4*1e+4;
+ac_common_gate(Vdd, Vss, Rd, Rs, Idss, Vp, rd);
+display_ac_results();
+
+gm: 3.042147e-03 S
+Zi: 285.709479 ohm
+Zo: 3048.498845 ohm
+Av: 9.350194
+Phase: In phase
 */
-void ac_common_gate(float Vdd, float Vss, float Rd, float Rs, 
-                    float Idss, float Vp, float rd) {
+void ac_common_gate(double Vdd, double Vss, double Rd, double Rs, 
+                    double Idss, double Vp, double rd) {
    // Check if the parameters of transistor are consistent.
-   if (Rd <= 0 || Rs <= 0 || rd <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of common-gate config. are inconsistent.");
+   assert (Rd > 0 && Rs > 0 && rd > 0);
 
    // For quadritic equations, find discriminant.
-   float a = (Rs * Rs) * Idss / (Vp * Vp);
-   float b1 = 2.0 * Rs * Idss / Vp;
-   float b2 = -2.0 * Vss * Rs * Idss / Vp / Vp;
-   float b = b1 + b2 - 1.0;
-   float c1 = 2.0 * Vss / Vp;
-   float c2 = Vss * Vss / Vp / Vp;
-   float c = (1.0 - c1 + c2) * Idss;
+   double a = (Rs * Rs) * Idss / (Vp * Vp);
+   double b1 = 2.0 * Rs * Idss / Vp;
+   double b2 = -2.0 * Vss * Rs * Idss / Vp / Vp;
+   double b = b1 + b2 - 1.0;
+   double c1 = 2.0 * Vss / Vp;
+   double c2 = Vss * Vss / Vp / Vp;
+   double c = (1.0 - c1 + c2) * Idss;
    // Calculate the all analyzes of transistor.
-   float Id = _select_right_Id_(a, b, c); // drain current
-   float Vgs = Vss - Id * Rs; // gate-source voltage
-   float gm = _find_gm_factor_(Idss, Vp, Vgs); // gm factor
-   float Zi1 = (rd + Rd) / (1 + gm * rd);
-   float Zi = _parallel_(Rs, Zi1); // input impedance
-   float Zo = _parallel_(Rd, rd); // output impedance
-   float Av1 = gm * Rd + Rd / rd;
-   float Av2 = 1 + Rd / rd;
-   float Av = Av1 / Av2; // voltage gain
+   double Id = select_right_Id(a, b, c); // drain current
+   double Vgs = Vss - Id * Rs; // gate-source voltage
+   double gm = find_gm_factor(Idss, Vp, Vgs); // gm factor
+   double Zi1 = (rd + Rd) / (1 + gm * rd);
+   double Zi = parallel(Rs, Zi1); // input impedance
+   double Zo = parallel(Rd, rd); // output impedance
+   double Av1 = gm * Rd + Rd / rd;
+   double Av2 = 1 + Rd / rd;
+   double Av = Av1 / Av2; // voltage gain
 
    // Save and display the AC results of transistor.
-   _save_ac_results_(gm, Zi, Zo, Av, "In phase");
-   _display_ac_results_(); 
+   save_ac_results(gm, Zi, Zo, Av, "In phase");
 }
 
 /* AC analysis of source-follower transistor configuration. 
@@ -412,24 +478,33 @@ void ac_common_gate(float Vdd, float Vss, float Rd, float Rs,
 'Vdd', 'Vgs', 'Rg', 'Rs' parameters stand for drain voltage, gate-
 source voltage, gate resistance, source resistance in order. 'Idss' 
 parameter is the maximum drain current. 'Vp' parameter is the 
-pinch-off voltage. 'rd' paramter is the drain resistance.
+pinch-off voltage. 'rd' paramter is the drain resistance. For 
+example:
+
+double Vdd=9, Vgs=-2.86, Rg=1e+6, Rs=2200;
+double Idss=0.016, Vp=-4, rd=4*1e+4; 
+ac_source_follower(Vdd, Vgs, Rg, Rs, Idss, Vp, rd);
+display_ac_results();
+
+gm: 2.280000e-03 S
+Zi: 1000000.000000 ohm
+Zo: 362.378521 ohm
+Av: 0.826223
+Phase: In phase
 */
-void ac_source_follower(float Vdd, float Vgs, float Rg, float Rs, 
-                        float Idss, float Vp, float rd) {
+void ac_source_follower(double Vdd,double Vgs,double Rg,double Rs, 
+                        double Idss, double Vp, double rd) {
    // Check if the parameters of transistor are consistent.
-   if (Rg <= 0 || Rs <= 0 || rd <= 0) 
-      _raise_error_(__FILE__, "JFETError", __LINE__, 
-      "Parameters of source-follower config. are inconsistent.");
+   assert (Rg > 0 && Rs > 0 && rd > 0);
 
    // Calculate the all analyzes of transistor.
-   float gm = _find_gm_factor_(Idss, Vp, Vgs);
-   float Zi = Rg;
-   float Zo = _parallel_(rd, _parallel_(Rs, 1/gm));
-   float Av1 = gm * _parallel_(rd, Rs);
-   float Av2 = 1.0 + Av1;
-   float Av = Av1 / Av2;
+   double gm = find_gm_factor(Idss, Vp, Vgs); // gm factor
+   double Zi = Rg; // input impedance
+   double Zo = parallel(rd, parallel(Rs, 1/gm)); // output impedence
+   double Av1 = gm * parallel(rd, Rs); 
+   double Av2 = 1.0 + Av1;
+   double Av = Av1 / Av2; // voltage gain
 
    // Save and display the AC results of transistor.
-   _save_ac_results_(gm, Zi, Zo, Av, "In phase");
-   _display_ac_results_(); 
+   save_ac_results(gm, Zi, Zo, Av, "In phase");
 }
